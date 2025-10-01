@@ -20,6 +20,13 @@ inputs:
     description: Use a fork when opening a PR
     required: false
     default: ${{ github.repository_owner != 'Homebrew' }}
+outputs:
+  pr-urls:
+    description: "URLs of opened PRs, they are space-separated"
+    value: ''
+  pr-numbers:
+    description: "Numbers of opened PRs, they are space-separated"
+    value: ''
 runs:
   using: composite
   steps:
@@ -31,7 +38,7 @@ runs:
           NO_FORK="--no-fork"
         fi
         IFS=" " read -r -a formulae <<<"${INPUT_FORMULAE}"
-        brew bump $NO_FORK --open-pr --formulae "${formulae[@]}"
+        brew bump $NO_FORK --open-pr --formulae "${formulae[@]}" >> bump.log
       shell: bash
       if: inputs.formulae != ''
       env:
@@ -47,7 +54,7 @@ runs:
           NO_FORK="--no-fork"
         fi
         IFS=" " read -r -a casks <<<"${INPUT_CASKS}"
-        brew bump $NO_FORK --open-pr --casks "${casks[@]}"
+        brew bump $NO_FORK --open-pr --casks "${casks[@]}" >> bump.log
       shell: bash
       if: inputs.casks != ''
       env:
@@ -55,3 +62,15 @@ runs:
         INPUT_FORK: ${{ inputs.fork }}
         HOMEBREW_DEVELOPER: "1"
         HOMEBREW_GITHUB_API_TOKEN: ${{ inputs.token }}
+    - name: Set outputs
+      id: set_outputs
+      shell: bash
+      run: |
+        all_urls=$(cat bump.log | grep -o 'https://github.com/.*/pull/[0-9]*' | tr '\n' ' ')
+        if [[ -z "$all_urls" ]]; then
+          echo "No PRs were created."
+        else
+          all_numbers=$(echo "$all_urls" | grep -o 'pull/[0-9]*' | sed 's/pull\///g' | tr '\n' ' ')
+          echo "pr-urls=$all_urls" >> $GITHUB_OUTPUT
+          echo "pr-numbers=$all_numbers" >> $GITHUB_OUTPUT
+        fi
