@@ -92,6 +92,12 @@ HOMEBREW_PREFIX="$(brew --prefix)"
 HOMEBREW_REPOSITORY="$(brew --repo)"
 HOMEBREW_CORE_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-core"
 HOMEBREW_CASK_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-cask"
+
+PARENT_REPO=""
+if [[ -z "${TAP}" && -f "${GITHUB_EVENT_PATH-}" ]] && command -v jq &>/dev/null; then
+    PARENT_REPO="$(jq -r '.repository.parent.full_name // empty' "${GITHUB_EVENT_PATH}" 2>/dev/null || true)"
+fi
+
 if [[ -n "${TAP}" ]]; then
     if [[ "${TAP}" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
         HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
@@ -100,15 +106,25 @@ if [[ -n "${TAP}" ]]; then
         HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
         HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${BASH_REMATCH[1]}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
     fi
-elif [[ "$GITHUB_REPOSITORY" =~ ^.+/(home|linux)brew-core$ ]]; then
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/(home|linux)brew-core$ || "$PARENT_REPO" =~ ^.+/(home|linux)brew-core$ ]]; then
     HOMEBREW_TAP_NAME="homebrew/core"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CORE_REPOSITORY"
-elif [[ "$GITHUB_REPOSITORY" =~ ^.+/homebrew-cask$ ]]; then
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/homebrew-cask$ || "$PARENT_REPO" =~ ^.+/homebrew-cask$ ]]; then
     HOMEBREW_TAP_NAME="homebrew/cask"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CASK_REPOSITORY"
 elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
     HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "$GITHUB_REPOSITORY" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/.+-homebrew-(.+)$ ]]; then
+    HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${BASH_REMATCH[1]}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/(.+)-homebrew$ ]]; then
+    HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${BASH_REMATCH[1]}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$PARENT_REPO" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
+    current_owner="${GITHUB_REPOSITORY%%/*}"
+    HOMEBREW_TAP_NAME="$(echo "${current_owner}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${current_owner}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
 fi
 
 # Resolve stable default: use stable for non-brew, non-tap repositories.

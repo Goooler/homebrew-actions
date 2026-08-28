@@ -12,7 +12,7 @@ const action = yaml.load(
   fs.readFileSync(new URL("action.yml", import.meta.url), "utf8"),
 ) as Action;
 
-function parseTapVariables(env: Record<string, string>, tapArg = ""): {
+function parseTapVariables(env: Record<string, string>, tapArg = "", parentRepo = ""): {
   tapName: string;
   tapRepo: string;
   stable: string;
@@ -23,6 +23,7 @@ HOMEBREW_REPOSITORY="/opt/homebrew"
 HOMEBREW_CORE_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-core"
 HOMEBREW_CASK_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-cask"
 TAP="${tapArg}"
+PARENT_REPO="${parentRepo}"
 STABLE="auto"
 
 if [[ -n "\${TAP}" ]]; then
@@ -33,15 +34,25 @@ if [[ -n "\${TAP}" ]]; then
         HOMEBREW_TAP_NAME="$(echo "\${BASH_REMATCH[1]}/\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
         HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "\${BASH_REMATCH[1]}/homebrew-\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
     fi
-elif [[ "$GITHUB_REPOSITORY" =~ ^.+/(home|linux)brew-core$ ]]; then
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/(home|linux)brew-core$ || "$PARENT_REPO" =~ ^.+/(home|linux)brew-core$ ]]; then
     HOMEBREW_TAP_NAME="homebrew/core"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CORE_REPOSITORY"
-elif [[ "$GITHUB_REPOSITORY" =~ ^.+/homebrew-cask$ ]]; then
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/homebrew-cask$ || "$PARENT_REPO" =~ ^.+/homebrew-cask$ ]]; then
     HOMEBREW_TAP_NAME="homebrew/cask"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CASK_REPOSITORY"
 elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
     HOMEBREW_TAP_NAME="$(echo "\${BASH_REMATCH[1]}/\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "$GITHUB_REPOSITORY" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/.+-homebrew-(.+)$ ]]; then
+    HOMEBREW_TAP_NAME="$(echo "\${BASH_REMATCH[1]}/\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "\${BASH_REMATCH[1]}/homebrew-\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/(.+)-homebrew$ ]]; then
+    HOMEBREW_TAP_NAME="$(echo "\${BASH_REMATCH[1]}/\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "\${BASH_REMATCH[1]}/homebrew-\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+elif [[ "$PARENT_REPO" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
+    current_owner="\${GITHUB_REPOSITORY%%/*}"
+    HOMEBREW_TAP_NAME="$(echo "\${current_owner}/\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "\${current_owner}/homebrew-\${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
 fi
 
 if [[ "\${STABLE}" == "auto" ]]; then
@@ -85,10 +96,28 @@ describe("setup-homebrew action", () => {
     assert.equal(result.stable, "false");
   });
 
+  it("automatically resolves tap for forked infix homebrew repository like Goooler/jw-homebrew-repo", () => {
+    const result = parseTapVariables({ GITHUB_REPOSITORY: "Goooler/jw-homebrew-repo" });
+    assert.equal(result.tapName, "goooler/repo");
+    assert.equal(result.tapRepo, "/opt/homebrew/Library/Taps/goooler/homebrew-repo");
+    assert.equal(result.stable, "false");
+  });
+
   it("resolves tap for forked tap repository with custom tap input", () => {
     const result = parseTapVariables(
-      { GITHUB_REPOSITORY: "Goooler/jw-homebrew-repo" },
+      { GITHUB_REPOSITORY: "Goooler/custom-repo-name" },
       "Goooler/repo",
+    );
+    assert.equal(result.tapName, "goooler/repo");
+    assert.equal(result.tapRepo, "/opt/homebrew/Library/Taps/goooler/homebrew-repo");
+    assert.equal(result.stable, "false");
+  });
+
+  it("resolves tap for forked repository via parent repo metadata", () => {
+    const result = parseTapVariables(
+      { GITHUB_REPOSITORY: "Goooler/custom-repo-name" },
+      "",
+      "JakeWharton/homebrew-repo",
     );
     assert.equal(result.tapName, "goooler/repo");
     assert.equal(result.tapRepo, "/opt/homebrew/Library/Taps/goooler/homebrew-repo");
