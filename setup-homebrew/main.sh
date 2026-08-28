@@ -8,6 +8,7 @@ DEBUG="${3}"
 TOKEN="${4}"
 STABLE="${5}"
 BREW_GH_API_TOKEN="${6}"
+TAP="${7-}"
 
 if [[ "${DEBUG}" == "true" ]]; then
     set -x
@@ -91,7 +92,21 @@ HOMEBREW_PREFIX="$(brew --prefix)"
 HOMEBREW_REPOSITORY="$(brew --repo)"
 HOMEBREW_CORE_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-core"
 HOMEBREW_CASK_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/homebrew/homebrew-cask"
-if [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
+if [[ -n "${TAP}" ]]; then
+    if [[ "${TAP}" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
+        HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+        HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${BASH_REMATCH[1]}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    elif [[ "${TAP}" =~ ^([^/]+)/(.+)$ ]]; then
+        HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+        HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "${BASH_REMATCH[1]}/homebrew-${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
+    fi
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/(home|linux)brew-core$ ]]; then
+    HOMEBREW_TAP_NAME="homebrew/core"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CORE_REPOSITORY"
+elif [[ "$GITHUB_REPOSITORY" =~ ^.+/homebrew-cask$ ]]; then
+    HOMEBREW_TAP_NAME="homebrew/cask"
+    HOMEBREW_TAP_REPOSITORY="$HOMEBREW_CASK_REPOSITORY"
+elif [[ "$GITHUB_REPOSITORY" =~ ^([^/]+)/homebrew-(.+)$ ]]; then
     HOMEBREW_TAP_NAME="$(echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" | tr "[:upper:]" "[:lower:]")"
     HOMEBREW_TAP_REPOSITORY="$HOMEBREW_REPOSITORY/Library/Taps/$(echo "$GITHUB_REPOSITORY" | tr "[:upper:]" "[:lower:]")"
 fi
