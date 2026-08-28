@@ -29,6 +29,10 @@ inputs:
     description: Use the latest stable `homebrew/brew` tag. Defaults to `true` for non-`brew`, non-tap repositories.
     required: false
     default: auto
+  tap:
+    description: Tap name to set up (e.g. `user/repo` or `user/homebrew-repo`). Defaults to auto-detecting from the repository name.
+    required: false
+    default: ""
 outputs:
   repository-path:
     description: Path to where the repository has been checked out (if applicable)
